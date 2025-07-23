@@ -35,41 +35,40 @@ elements.btnAdmin.addEventListener('click', () => {
 
 // 最新データ取得→表示
 async function loadAndDisplay() {
-  // ① localStorage から復元（あれば）
+  // localStorage から復元
   const saved = localStorage.getItem('comfortData');
   if (saved) {
     try {
       const { decibel, timestamp } = JSON.parse(saved);
       updateUI(decibel, timestamp);
     } catch (e) {
-      console.error('[Comfort App] restore localStorage error:', e);
+      console.error('restore error', e);
     }
   }
-
-  // ② サーバから最新取得
+  // サーバから最新取得
   try {
     const res = await fetch(api.latest);
     if (res.ok) {
       const { decibel, timestamp } = await res.json();
       updateUI(decibel, timestamp);
-    } else {
-      console.error('[Comfort App] loadAndDisplay: server error', res.status);
     }
   } catch (e) {
-    console.error('[Comfort App] loadAndDisplay Error:', e);
+    console.error('load error', e);
   }
 }
 
 // UI 更新ロジック
-function updateUI(db, ts) {
-  // 音圧レベルは負の値になるので、絶対値で表示
-  const value = Number.isFinite(db) ? Math.abs(db) : 0;
-
+function updateUI(rawValue, ts) {
+  // rawValue は 0–60 の正規化デシベル
+  const value = Number.isFinite(rawValue) ? rawValue : 0;
   elements.db.textContent = value.toFixed(1);
   elements.ts.textContent = ts ? new Date(ts).toLocaleString() : '--';
 
-  const lvl = Math.min(5, Math.floor(value / 10));
-  const icons = ['😌', '🙂', '😐', '😟', '😫', '😡'];
+  // 0–60dB を 6 段階（0–5）に分割し、
+  // 静か(0dB)が快適度5、大きい(>=50dB)が快適度0になるよう反転
+  const bucket = Math.min(5, Math.floor(value / 10));
+  const lvl = Math.max(0, 5 - bucket);
+  const icons = ['😌','🙂','😐','😟','😫','😡'];
   elements.icon.textContent = icons[lvl];
   elements.text.textContent = `快適度レベル ${lvl}`;
   elements.card.className = `comfort-level-${lvl}`;
@@ -81,11 +80,11 @@ function updateUI(db, ts) {
       JSON.stringify({ decibel: value, timestamp: ts })
     );
   } catch (e) {
-    console.error('[Comfort App] save localStorage error:', e);
+    console.error('save error', e);
   }
 }
 
-// 音量測定＆送信（time domain）
+// 音量測定＆送信
 elements.btnMeasure.addEventListener('click', async () => {
   elements.feedback.textContent = '測定中…';
   try {
@@ -98,42 +97,34 @@ elements.btnMeasure.addEventListener('click', async () => {
 
     const buffer = new Float32Array(analyser.fftSize);
     let sum = 0, count = 0;
-
     const end = Date.now() + 3000;
-    console.log('[measure] start sampling');
+
     while (Date.now() < end) {
       analyser.getFloatTimeDomainData(buffer);
-      // RMS 計算
       let sumSq = 0;
       for (let i = 0; i < buffer.length; i++) {
         sumSq += buffer[i] * buffer[i];
       }
       const rms = Math.sqrt(sumSq / buffer.length);
-      let dbInstant = 20 * Math.log10(rms);
-      if (!Number.isFinite(dbInstant)) dbInstant = 0;
-      console.log(
-        '[measure] rms:',
-        rms.toFixed(3),
-        ' dbInstant:',
-        dbInstant.toFixed(1)
-      );
-      sum += dbInstant;
+      // raw dBFS (negative or -Infinity)
+      const rawDb = 20 * Math.log10(rms || 1e-8);
+      // 0–60範囲に正規化（rawDb + 60 を 0–60 にクランプ）
+      const normDb = Math.max(0, Math.min(60, rawDb + 60));
+      sum += normDb;
       count++;
       await new Promise(r => setTimeout(r, 200));
     }
-    console.log('[measure] end sampling');
 
-    const avgDb = sum / count;
-    // 絶対値にして正数化
-    const safeDb = Number.isFinite(avgDb) ? Math.abs(avgDb) : 0;
+    const avg = sum / count;
+    const safe = Number.isFinite(avg) ? avg : 0;
 
     const res = await fetch(api.provide, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decibel: safeDb })
+      body: JSON.stringify({ decibel: safe })
     });
     if (!res.ok) {
-      console.error('[Comfort App] API Error', res.status, await res.text());
+      console.error('API Error', res.status, await res.text());
       elements.feedback.textContent = `サーバーエラー(${res.status})`;
       return;
     }
@@ -141,7 +132,7 @@ elements.btnMeasure.addEventListener('click', async () => {
     updateUI(json.decibel, json.timestamp);
     elements.feedback.textContent = '送信完了！';
   } catch (e) {
-    console.error('[Comfort App] Measurement Error:', e);
+    console.error('Measurement Error:', e);
     elements.feedback.textContent = 'エラーが発生しました';
   }
 });
