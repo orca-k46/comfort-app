@@ -68,7 +68,7 @@ function updateUI(rawValue, ts) {
   // 静か(0dB)が快適度5、大きい(>=50dB)が快適度0になるよう反転
   const bucket = Math.min(5, Math.floor(value / 10));
   const lvl = Math.max(0, 5 - bucket);
-  const icons = ['😌','🙂','😐','😟','😫','😡'];
+  const icons = ['😡','😫','😟','😐','🙂','😌'];
   elements.icon.textContent = icons[lvl];
   elements.text.textContent = `快適度レベル ${lvl}`;
   elements.card.className = `comfort-level-${lvl}`;
