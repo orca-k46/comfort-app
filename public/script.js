@@ -34,10 +34,24 @@ elements.btnAdmin.addEventListener('click', () => {
 
 // 最新データ取得→表示
 async function loadAndDisplay() {
+  // ① localStorage から復元（あれば）
+  const saved = localStorage.getItem('comfortData');
+  if (saved) {
+    try {
+      const { decibel, timestamp } = JSON.parse(saved);
+      updateUI(decibel, timestamp);
+    } catch {}
+  }
+
+  // ② サーバから最新取得
   try {
     const res = await fetch(api.latest);
-    const { decibel, timestamp } = await res.json();
-    updateUI(decibel, timestamp);
+    if (res.ok) {
+      const { decibel, timestamp } = await res.json();
+      updateUI(decibel, timestamp);
+    } else {
+      console.error('[Comfort App] loadAndDisplay: server error', res.status);
+    }
   } catch (e) {
     console.error('[Comfort App] loadAndDisplay Error:', e);
   }
@@ -45,7 +59,6 @@ async function loadAndDisplay() {
 
 // UI 更新ロジック
 function updateUI(db, ts) {
-  // db は数値前提。念のため fallback
   const value = Number.isFinite(db) ? db : 0;
   elements.db.textContent = value.toFixed(1);
   elements.ts.textContent = ts ? new Date(ts).toLocaleString() : '--';
@@ -54,6 +67,14 @@ function updateUI(db, ts) {
   elements.icon.textContent = icons[lvl];
   elements.text.textContent = `快適度レベル ${lvl}`;
   elements.card.className = `comfort-level-${lvl}`;
+
+  // localStorage に保存
+  try {
+    localStorage.setItem(
+      'comfortData',
+      JSON.stringify({ decibel: value, timestamp: ts })
+    );
+  } catch {}
 }
 
 // 音量測定＆送信
@@ -65,22 +86,30 @@ elements.btnMeasure.addEventListener('click', async () => {
     const analyser = ctx.createAnalyser();
     ctx.createMediaStreamSource(stream).connect(analyser);
     analyser.fftSize = 2048;
-    const data = new Uint8Array(analyser.frequencyBinCount);
+
+    const freqData = new Uint8Array(analyser.frequencyBinCount);
     let sum = 0, count = 0;
 
     // 3秒間サンプリング（200ms 間隔）
     const end = Date.now() + 3000;
     while (Date.now() < end) {
-      analyser.getByteFrequencyData(data);
-      const rms = Math.sqrt(data.reduce((a, v) => a + v * v, 0) / data.length);
-      const db = 20 * Math.log10(rms);
-      sum += db;
+      analyser.getByteFrequencyData(freqData);
+      const rms = Math.sqrt(
+        freqData.reduce((acc, v) => acc + v * v, 0) / freqData.length
+      );
+      const dbInstant = 20 * Math.log10(rms);
+      console.log(
+        '[measure] rms:',
+        rms.toFixed(3),
+        ' dbInstant:',
+        dbInstant.toFixed(1)
+      );
+      sum += dbInstant;
       count++;
       await new Promise(r => setTimeout(r, 200));
     }
 
     const avgDb = sum / count;
-    // NaN / Infinity 対策：有限数でなければ 0
     const safeDb = Number.isFinite(avgDb) ? avgDb : 0;
 
     // サーバへ送信
@@ -89,6 +118,12 @@ elements.btnMeasure.addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ decibel: safeDb })
     });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('[Comfort App] API Error', res.status, text);
+      elements.feedback.textContent = `サーバーエラー(${res.status})`;
+      return;
+    }
     const json = await res.json();
     updateUI(json.decibel, json.timestamp);
     elements.feedback.textContent = '送信完了！';
