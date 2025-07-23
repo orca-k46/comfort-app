@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🦆 Comfort App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="overlay"></div>
+  <div class="container">
+    <header>
+      <h1>🦆 Comfort App</h1>
+      <nav>
+        <button id="btn-main" class="active">メイン</button>
+        <button id="btn-admin">管理</button>
+      </nav>
+    </header>
+
+    <!-- メインビュー -->
+    <section id="main-view">
+      <div id="status-card" class="comfort-level-0">
+        <div id="icon">😐</div>
+        <h2 id="level-text">快適度を取得中…</h2>
+        <p>dB: <span id="db-value">--</span></p>
+        <p>最終更新: <span id="timestamp">--</span></p>
+      </div>
+    </section>
+
+    <!-- 管理ビュー -->
+    <section id="admin-view" style="display:none">
+      <button id="btn-measure">データを提供する</button>
+      <p id="feedback-message"></p>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
