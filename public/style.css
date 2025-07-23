@@ -49,12 +49,13 @@ nav button:hover {
 #status-card h2 { margin: 10px 0; }
 
 /* 快適度レベル別背景 */
-.comfort-level-0 { background: rgba(200,200,200,0.4); }
-.comfort-level-1 { background: rgba(180,230,180,0.4); }
-.comfort-level-2 { background: rgba(140,200,240,0.4); }
-.comfort-level-3 { background: rgba(240,200,140,0.4); }
-.comfort-level-4 { background: rgba(240,140,140,0.4); }
-.comfort-level-5 { background: rgba(240,100,100,0.6); }
+.comfort-level-0 { background: rgba(240, 100, 100, 0.6); } /* うるさい⇒赤 */
+.comfort-level-1 { background: rgba(240, 140, 140, 0.4); }
+.comfort-level-2 { background: rgba(240, 200, 140, 0.4); }
+.comfort-level-3 { background: rgba(140, 200, 240, 0.4); }
+.comfort-level-4 { background: rgba(180, 230, 180, 0.4); }
+.comfort-level-5 { background: rgba(140, 240, 140, 0.4); } /* 静か⇒緑 */
+
 
 /* 管理ビュー */
 #btn-measure {

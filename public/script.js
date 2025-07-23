@@ -59,15 +59,17 @@ async function loadAndDisplay() {
 
 // UI 更新ロジック
 function updateUI(rawValue, ts) {
-  // rawValue は 0–60 の正規化デシベル
+  // rawValue は 0–60 に正規化済みの数値
   const value = Number.isFinite(rawValue) ? rawValue : 0;
   elements.db.textContent = value.toFixed(1);
   elements.ts.textContent = ts ? new Date(ts).toLocaleString() : '--';
 
-  // 0–60dB を 6 段階（0–5）に分割し、
-  // 静か(0dB)が快適度5、大きい(>=50dB)が快適度0になるよう反転
+  // 値を 0–60→0–5 に分割
   const bucket = Math.min(5, Math.floor(value / 10));
-  const lvl = Math.max(0, 5 - bucket);
+  // 5（静か）が快適レベル5、0（うるさい）が快適レベル0
+  const lvl = 5 - bucket;
+
+  // 顔文字を反転した配列（0:😡 … 5:😌）
   const icons = ['😡','😫','😟','😐','🙂','😌'];
   elements.icon.textContent = icons[lvl];
   elements.text.textContent = `快適度レベル ${lvl}`;
@@ -106,9 +108,9 @@ elements.btnMeasure.addEventListener('click', async () => {
         sumSq += buffer[i] * buffer[i];
       }
       const rms = Math.sqrt(sumSq / buffer.length);
-      // raw dBFS (negative or -Infinity)
+      // raw dBFS
       const rawDb = 20 * Math.log10(rms || 1e-8);
-      // 0–60範囲に正規化（rawDb + 60 を 0–60 にクランプ）
+      // 0–60dB に正規化
       const normDb = Math.max(0, Math.min(60, rawDb + 60));
       sum += normDb;
       count++;
