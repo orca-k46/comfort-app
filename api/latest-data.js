@@ -1,20 +1,33 @@
 // api/latest-data.js
-const fs = require('fs');
+const os   = require('os');
+const fs   = require('fs');
 const path = require('path');
+
+const DB_PATH = path.join(os.tmpdir(), 'db.json');
 
 module.exports = async (req, res) => {
   if (req.method !== 'GET') {
-    res.status(405).end(); // Method Not Allowed
-    return;
+    return res.status(405).end();
   }
+
   try {
-    const dbPath = path.join(__dirname, '..', 'db.json');
-    const raw = fs.readFileSync(dbPath, 'utf8');
+    // ファイルがなければデフォルト値を返す
+    let raw;
+    try {
+      raw = fs.readFileSync(DB_PATH, 'utf8');
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        return res.status(200).json({ decibel: 0, timestamp: '' });
+      }
+      throw err;
+    }
+
     const data = JSON.parse(raw);
     res.setHeader('Content-Type', 'application/json');
     res.status(200).json(data);
-  } catch (e) {
-    console.error('[latest-data] Read Error:', e);
+
+  } catch (err) {
+    console.error('[latest-data] Error:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
