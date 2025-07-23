@@ -4,6 +4,7 @@ const api = {
   latest: '/api/latest-data',
   provide: '/api/provide-data'
 };
+
 const elements = {
   db: document.getElementById('db-value'),
   ts: document.getElementById('timestamp'),
@@ -40,7 +41,9 @@ async function loadAndDisplay() {
     try {
       const { decibel, timestamp } = JSON.parse(saved);
       updateUI(decibel, timestamp);
-    } catch {}
+    } catch (e) {
+      console.error('[Comfort App] restore localStorage error:', e);
+    }
   }
 
   // ② サーバから最新取得
@@ -63,7 +66,7 @@ function updateUI(db, ts) {
   elements.db.textContent = value.toFixed(1);
   elements.ts.textContent = ts ? new Date(ts).toLocaleString() : '--';
   const lvl = Math.min(5, Math.floor(value / 10));
-  const icons = ['😌','🙂','😐','😟','😫','😡'];
+  const icons = ['😌', '🙂', '😐', '😟', '😫', '😡'];
   elements.icon.textContent = icons[lvl];
   elements.text.textContent = `快適度レベル ${lvl}`;
   elements.card.className = `comfort-level-${lvl}`;
@@ -74,7 +77,9 @@ function updateUI(db, ts) {
       'comfortData',
       JSON.stringify({ decibel: value, timestamp: ts })
     );
-  } catch {}
+  } catch (e) {
+    console.error('[Comfort App] save localStorage error:', e);
+  }
 }
 
 // 音量測定＆送信
@@ -101,7 +106,7 @@ elements.btnMeasure.addEventListener('click', async () => {
       console.log(
         '[measure] rms:',
         rms.toFixed(3),
-        ' dbInstant:',
+        'dbInstant:',
         dbInstant.toFixed(1)
       );
       sum += dbInstant;
