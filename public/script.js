@@ -4,6 +4,7 @@ const api = {
   latest: '/api/latest-data',
   provide: '/api/provide-data'
 };
+
 const elements = {
   db: document.getElementById('db-value'),
   ts: document.getElementById('timestamp'),
@@ -34,39 +35,57 @@ elements.btnAdmin.addEventListener('click', () => {
 
 // 最新データ取得→表示
 async function loadAndDisplay() {
+  // ① localStorage から復元（あれば）
   const saved = localStorage.getItem('comfortData');
   if (saved) {
     try {
       const { decibel, timestamp } = JSON.parse(saved);
       updateUI(decibel, timestamp);
-    } catch (e) { console.warn('restore failed', e); }
+    } catch (e) {
+      console.error('[Comfort App] restore localStorage error:', e);
+    }
   }
+
+  // ② サーバから最新取得
   try {
     const res = await fetch(api.latest);
     if (res.ok) {
       const { decibel, timestamp } = await res.json();
       updateUI(decibel, timestamp);
+    } else {
+      console.error('[Comfort App] loadAndDisplay: server error', res.status);
     }
-  } catch (e) { console.error('load error', e); }
+  } catch (e) {
+    console.error('[Comfort App] loadAndDisplay Error:', e);
+  }
 }
 
 // UI 更新ロジック
 function updateUI(db, ts) {
-  const value = Number.isFinite(db) ? db : 0;
+  // 音圧レベルは負の値になるので、絶対値で表示
+  const value = Number.isFinite(db) ? Math.abs(db) : 0;
+
   elements.db.textContent = value.toFixed(1);
   elements.ts.textContent = ts ? new Date(ts).toLocaleString() : '--';
+
   const lvl = Math.min(5, Math.floor(value / 10));
-  const icons = ['😌','🙂','😐','😟','😫','😡'];
+  const icons = ['😌', '🙂', '😐', '😟', '😫', '😡'];
   elements.icon.textContent = icons[lvl];
   elements.text.textContent = `快適度レベル ${lvl}`;
   elements.card.className = `comfort-level-${lvl}`;
+
+  // localStorage に保存
   try {
-    localStorage.setItem('comfortData',
-      JSON.stringify({ decibel: value, timestamp: ts }));
-  } catch {}
+    localStorage.setItem(
+      'comfortData',
+      JSON.stringify({ decibel: value, timestamp: ts })
+    );
+  } catch (e) {
+    console.error('[Comfort App] save localStorage error:', e);
+  }
 }
 
-// 音量測定＆送信（time domain に切替）
+// 音量測定＆送信（time domain）
 elements.btnMeasure.addEventListener('click', async () => {
   elements.feedback.textContent = '測定中…';
   try {
@@ -86,21 +105,27 @@ elements.btnMeasure.addEventListener('click', async () => {
       analyser.getFloatTimeDomainData(buffer);
       // RMS 計算
       let sumSq = 0;
-      for (let i = 0; i < buffer.length; i++) sumSq += buffer[i] * buffer[i];
+      for (let i = 0; i < buffer.length; i++) {
+        sumSq += buffer[i] * buffer[i];
+      }
       const rms = Math.sqrt(sumSq / buffer.length);
-      const dbInstant = 20 * Math.log10(rms);
+      let dbInstant = 20 * Math.log10(rms);
+      if (!Number.isFinite(dbInstant)) dbInstant = 0;
       console.log(
-        '[measure] rms:', rms.toFixed(3),
-        ' dbInstant:', isFinite(dbInstant) ? dbInstant.toFixed(1) : 'NaN'
+        '[measure] rms:',
+        rms.toFixed(3),
+        ' dbInstant:',
+        dbInstant.toFixed(1)
       );
-      sum += isFinite(dbInstant) ? dbInstant : 0;
+      sum += dbInstant;
       count++;
       await new Promise(r => setTimeout(r, 200));
     }
     console.log('[measure] end sampling');
 
     const avgDb = sum / count;
-    const safeDb = Number.isFinite(avgDb) ? avgDb : 0;
+    // 絶対値にして正数化
+    const safeDb = Number.isFinite(avgDb) ? Math.abs(avgDb) : 0;
 
     const res = await fetch(api.provide, {
       method: 'POST',
@@ -108,7 +133,7 @@ elements.btnMeasure.addEventListener('click', async () => {
       body: JSON.stringify({ decibel: safeDb })
     });
     if (!res.ok) {
-      console.error('API error', await res.text());
+      console.error('[Comfort App] API Error', res.status, await res.text());
       elements.feedback.textContent = `サーバーエラー(${res.status})`;
       return;
     }
@@ -116,7 +141,7 @@ elements.btnMeasure.addEventListener('click', async () => {
     updateUI(json.decibel, json.timestamp);
     elements.feedback.textContent = '送信完了！';
   } catch (e) {
-    console.error('Measurement Error:', e);
+    console.error('[Comfort App] Measurement Error:', e);
     elements.feedback.textContent = 'エラーが発生しました';
   }
 });
