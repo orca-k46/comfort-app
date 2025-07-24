@@ -41,7 +41,7 @@ module.exports = async (req, res) => {
         { role: "system", content: "あなたは快適度チェッカーのコメント生成アシスタントです。" },
         { role: "user", content: prompt }
       ],
-      max_tokens: 20,
+      max_tokens: 60,
       temperature: 0.7
     });
 
