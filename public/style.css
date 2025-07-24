@@ -85,4 +85,6 @@ nav button:hover {
 #comment-text {
   margin-top: 10px;
   font-style: italic;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
