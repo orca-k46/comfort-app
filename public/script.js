@@ -2,7 +2,8 @@
 
 const api = {
   latest: '/api/latest-data',
-  provide: '/api/provide-data'
+  provide: '/api/provide-data',
+  comment: '/api/generate-comment'
 };
 
 const elements = {
@@ -16,7 +17,9 @@ const elements = {
   btnMain: document.getElementById('btn-main'),
   btnAdmin: document.getElementById('btn-admin'),
   mainView: document.getElementById('main-view'),
-  adminView: document.getElementById('admin-view')
+  adminView: document.getElementById('admin-view'),
+  btnComment: document.getElementById('btn-comment'),
+  commentText: document.getElementById('comment-text')
 };
 
 // ページ切替
@@ -35,14 +38,14 @@ elements.btnAdmin.addEventListener('click', () => {
 
 // 最新データ取得→表示
 async function loadAndDisplay() {
-  // localStorage から復元
+  // localStorage から復元（あれば）
   const saved = localStorage.getItem('comfortData');
   if (saved) {
     try {
       const { decibel, timestamp } = JSON.parse(saved);
       updateUI(decibel, timestamp);
     } catch (e) {
-      console.error('restore error', e);
+      console.error('[Comfort App] restore error:', e);
     }
   }
   // サーバから最新取得
@@ -53,23 +56,20 @@ async function loadAndDisplay() {
       updateUI(decibel, timestamp);
     }
   } catch (e) {
-    console.error('load error', e);
+    console.error('[Comfort App] load error:', e);
   }
 }
 
 // UI 更新ロジック
 function updateUI(rawValue, ts) {
-  // rawValue は 0–60 に正規化済みの数値
   const value = Number.isFinite(rawValue) ? rawValue : 0;
   elements.db.textContent = value.toFixed(1);
   elements.ts.textContent = ts ? new Date(ts).toLocaleString() : '--';
 
-  // 値を 0–60→0–5 に分割
+  // 0–60→0–5にバケット化→反転
   const bucket = Math.min(5, Math.floor(value / 10));
-  // 5（静か）が快適レベル5、0（うるさい）が快適レベル0
   const lvl = 5 - bucket;
 
-  // 顔文字を反転した配列（0:😡 … 5:😌）
   const icons = ['😡','😫','😟','😐','🙂','😌'];
   elements.icon.textContent = icons[lvl];
   elements.text.textContent = `快適度レベル ${lvl}`;
@@ -82,7 +82,7 @@ function updateUI(rawValue, ts) {
       JSON.stringify({ decibel: value, timestamp: ts })
     );
   } catch (e) {
-    console.error('save error', e);
+    console.error('[Comfort App] save error:', e);
   }
 }
 
@@ -108,9 +108,7 @@ elements.btnMeasure.addEventListener('click', async () => {
         sumSq += buffer[i] * buffer[i];
       }
       const rms = Math.sqrt(sumSq / buffer.length);
-      // raw dBFS
       const rawDb = 20 * Math.log10(rms || 1e-8);
-      // 0–60dB に正規化
       const normDb = Math.max(0, Math.min(60, rawDb + 60));
       sum += normDb;
       count++;
@@ -126,7 +124,7 @@ elements.btnMeasure.addEventListener('click', async () => {
       body: JSON.stringify({ decibel: safe })
     });
     if (!res.ok) {
-      console.error('API Error', res.status, await res.text());
+      console.error('[Comfort App] API Error', res.status, await res.text());
       elements.feedback.textContent = `サーバーエラー(${res.status})`;
       return;
     }
@@ -134,8 +132,34 @@ elements.btnMeasure.addEventListener('click', async () => {
     updateUI(json.decibel, json.timestamp);
     elements.feedback.textContent = '送信完了！';
   } catch (e) {
-    console.error('Measurement Error:', e);
+    console.error('[Comfort App] Measurement Error:', e);
     elements.feedback.textContent = 'エラーが発生しました';
+  }
+});
+
+// コメント生成
+elements.btnComment.addEventListener('click', async () => {
+  elements.commentText.textContent = '生成中…';
+  try {
+    const currentDb = parseFloat(elements.db.textContent) || 0;
+    const currentTs = elements.ts.textContent !== '--'
+      ? new Date(elements.ts.textContent).toISOString()
+      : '';
+
+    const res = await fetch(api.comment, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decibel: currentDb, timestamp: currentTs })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || res.statusText);
+    }
+    const { comment } = await res.json();
+    elements.commentText.textContent = comment;
+  } catch (e) {
+    console.error('[Comfort App] generate comment error:', e);
+    elements.commentText.textContent = 'コメント生成に失敗しました';
   }
 });
 
